@@ -23,49 +23,44 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
 
 import com.udacity.example.droidtermsprovider.DroidTermsExampleContract;
 
-/**
- * Gets the data from the ContentProvider and shows a series of flash cards.
- */
+import org.w3c.dom.Text;
 
 public class MainActivity extends AppCompatActivity {
 
-    // The current state of the app
-    private int mCurrentState;
     private Cursor mData;
+
+    private int mCurrentState;
 
     private Button mButton;
 
-    // This state is when the word definition is hidden and clicking the button will therefore
-    // show the definition
+    private int mDefCol;
+    private int mWordCol;
+
+    private TextView mDefinitionTextView;
+    private TextView mWordTextView;
+
     private final int STATE_HIDDEN = 0;
-
-    // This state is when the word definition is shown and clicking the button will therefore
-    // advance the app to the next word
     private final int STATE_SHOWN = 1;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Get the views
         mButton = (Button) findViewById(R.id.button_next);
-        new RetrieveQuizQuestions().execute();
+        mDefinitionTextView = (TextView) findViewById(R.id.text_view_definition);
+        mWordTextView = (TextView) findViewById(R.id.text_view_word);
+
+        new WordFetchTask().execute();
     }
 
-    /**
-     * This is called from the layout when the button is clicked and switches between the
-     * two app states.
-     * @param view The view that was clicked
-     */
     public void onButtonClick(View view) {
 
-        // Either show the definition of the current word, or if the definition is currently
-        // showing, move to the next word.
         switch (mCurrentState) {
             case STATE_HIDDEN:
                 showDefinition();
@@ -77,39 +72,58 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void nextWord() {
+        if (mData != null) {
 
-        // Change button text
-        mButton.setText(getString(R.string.show_definition));
+            if (!mData.moveToNext()) {
+                mData.moveToFirst();
+            }
 
-        mCurrentState = STATE_HIDDEN;
+            mDefinitionTextView.setVisibility(View.INVISIBLE);
+            mButton.setText(getString(R.string.show_definition));
+            mWordTextView.setText(mData.getString(mWordCol));
+            mDefinitionTextView.setText(mData.getString(mDefCol));
 
+            mCurrentState = STATE_HIDDEN;
+        }
     }
 
     public void showDefinition() {
 
-        // Change button text
         mButton.setText(getString(R.string.next_word));
 
+        mDefinitionTextView.setVisibility(View.VISIBLE);
         mCurrentState = STATE_SHOWN;
-
     }
 
-    private class RetrieveQuizQuestions extends AsyncTask<Void, Void, Cursor> {
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mData.close();
+    }
+
+    public class WordFetchTask extends AsyncTask<Void, Void, Cursor> {
+
         @Override
-        protected Cursor doInBackground(Void... voids) {
+        protected Cursor doInBackground(Void... params) {
+
             ContentResolver resolver = getContentResolver();
-            return resolver.query(
-                    DroidTermsExampleContract.CONTENT_URI, null, null,
-                    null, null);
+
+            Cursor cursor = resolver.query(DroidTermsExampleContract.CONTENT_URI,
+                    null, null, null, null);
+            return cursor;
         }
+
 
         @Override
         protected void onPostExecute(Cursor cursor) {
             super.onPostExecute(cursor);
+
             mData = cursor;
+            mDefCol = mData.getColumnIndex(DroidTermsExampleContract.COLUMN_DEFINITION);
+            mWordCol = mData.getColumnIndex(DroidTermsExampleContract.COLUMN_WORD);
+
+            nextWord();
         }
     }
-
-
 
 }
